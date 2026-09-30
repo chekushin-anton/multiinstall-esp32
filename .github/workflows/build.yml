@@ -32,10 +32,6 @@ jobs:
         id: find_sketch
         run: |
           set -e
-          echo "=== Repository root ==="
-          ls -la
-
-          # Ищем папку, где есть .ino файл
           SKETCH=""
           for d in */; do
             d="${d%/}"
@@ -44,17 +40,11 @@ jobs:
               break
             fi
           done
-
           if [ -z "$SKETCH" ]; then
             echo "ERROR: sketch folder with .ino not found"
-            echo "Contents:"
-            find . -maxdepth 2 -name "*.ino"
             exit 1
           fi
-
           echo "Found sketch folder: $SKETCH"
-          ls -la "$SKETCH"
-
           echo "SKETCH=$SKETCH" >> $GITHUB_OUTPUT
 
       - name: Build all boards
@@ -70,7 +60,7 @@ jobs:
           echo "Found mklittlefs: $MKLS"
           chmod +x "$MKLS"
 
-          # ============ S3 (16 MB) ============
+          # ============ S3 (16 MB, кастомные разделы) ============
           echo "=== S3 ==="
           cat > "$SKETCH/partitions.csv" <<'EOF'
           # Name,   Type, SubType, Offset,  Size, Flags
@@ -91,13 +81,8 @@ jobs:
           cp build-s3/*.ino.bin        flasher/firmware/s3/firmware.bin
           find ~/.arduino15 -name "boot_app0.bin" -exec cp {} flasher/firmware/s3/ \;
 
-          # S3: все FW одним образом
-          echo "--- S3: all ---"
           "$MKLS" -c "$SKETCH/data" -s 0xBE0000 -p 256 -b 4096 flasher/firmware/s3/spiffs-all.bin
-
-          # S3: по одной версии
           for e in $EXPLOITS; do
-            echo "--- S3: FW $e ---"
             rm -rf staging && mkdir -p staging/ran
             cp -r "$SKETCH/data/index.html" "$SKETCH/data/style.css" staging/ 2>/dev/null || true
             cp -r "$SKETCH/data/ran/index.html" staging/ran/ 2>/dev/null || true
@@ -107,22 +92,15 @@ jobs:
             "$MKLS" -c staging -s 0xBE0000 -p 256 -b 4096 flasher/firmware/s3/spiffs-$e.bin
           done
 
-          # ============ C3 (4 MB) ============
+          # ============ C3 (4 MB, схема default) ============
           echo "=== C3 ==="
-          cat > "$SKETCH/partitions.csv" <<'EOF'
-          # Name,   Type, SubType, Offset,  Size, Flags
-          nvs,      data, nvs,     0x9000,  0x5000,
-          otadata,  data, ota,     0xe000,  0x2000,
-          app0,     app,  ota_0,   0x10000, 0x1A0000,
-          app1,     app,  ota_1,   0x1B0000,0x1A0000,
-          spiffs,   data, spiffs,  0x350000,0x0B0000,
-          coredump, data, coredump,0x400000,0x10000,
-          EOF
+          # Удаляем кастомный partitions.csv, чтобы не путался
+          rm -f "$SKETCH/partitions.csv"
 
           # --- C3 Super Mini ---
           echo "--- C3 Super Mini ---"
           arduino-cli compile \
-            --fqbn esp32:esp32:nologo_esp32c3_super_mini:PartitionScheme=custom,CDCOnBoot=cdc \
+            --fqbn esp32:esp32:nologo_esp32c3_super_mini:PartitionScheme=default,CDCOnBoot=cdc \
             --output-dir ./build-c3s "$SKETCH"
 
           cp build-c3s/*.bootloader.bin flasher/firmware/c3s/bootloader.bin
@@ -131,20 +109,19 @@ jobs:
           find ~/.arduino15 -name "boot_app0.bin" -exec cp {} flasher/firmware/c3s/ \;
 
           for e in $EXPLOITS; do
-            echo "--- C3S: FW $e ---"
             rm -rf staging && mkdir -p staging/ran
             cp -r "$SKETCH/data/index.html" "$SKETCH/data/style.css" staging/ 2>/dev/null || true
             cp -r "$SKETCH/data/ran/index.html" staging/ran/ 2>/dev/null || true
             cp -r "$SKETCH/data/ran/css" staging/ran/ 2>/dev/null || true
             cp -r "$SKETCH/data/ran/shared" staging/ran/ 2>/dev/null || true
             cp -r "$SKETCH/data/ran/$e" staging/ran/
-            "$MKLS" -c staging -s 0x0B0000 -p 256 -b 4096 flasher/firmware/c3s/spiffs-$e.bin
+            "$MKLS" -c staging -s 0x160000 -p 256 -b 4096 flasher/firmware/c3s/spiffs-$e.bin
           done
 
-          # --- C3 Zero ---
+          # --- C3 Zero (generic) ---
           echo "--- C3 Zero ---"
           arduino-cli compile \
-            --fqbn esp32:esp32:esp32c3:PartitionScheme=custom,CDCOnBoot=cdc \
+            --fqbn esp32:esp32:esp32c3:PartitionScheme=default,CDCOnBoot=cdc \
             --output-dir ./build-c3z "$SKETCH"
 
           cp build-c3z/*.bootloader.bin flasher/firmware/c3z/bootloader.bin
@@ -153,14 +130,13 @@ jobs:
           find ~/.arduino15 -name "boot_app0.bin" -exec cp {} flasher/firmware/c3z/ \;
 
           for e in $EXPLOITS; do
-            echo "--- C3Z: FW $e ---"
             rm -rf staging && mkdir -p staging/ran
             cp -r "$SKETCH/data/index.html" "$SKETCH/data/style.css" staging/ 2>/dev/null || true
             cp -r "$SKETCH/data/ran/index.html" staging/ran/ 2>/dev/null || true
             cp -r "$SKETCH/data/ran/css" staging/ran/ 2>/dev/null || true
             cp -r "$SKETCH/data/ran/shared" staging/ran/ 2>/dev/null || true
             cp -r "$SKETCH/data/ran/$e" staging/ran/
-            "$MKLS" -c staging -s 0x0B0000 -p 256 -b 4096 flasher/firmware/c3z/spiffs-$e.bin
+            "$MKLS" -c staging -s 0x160000 -p 256 -b 4096 flasher/firmware/c3z/spiffs-$e.bin
           done
 
           echo "=== Firmware tree ==="
@@ -196,10 +172,15 @@ jobs:
           EOF
           }
 
+          # S3: все FW + по одному
           gen s3 all "ESP32-S3" 4259840 "spiffs-all.bin"
           for e in $EXPLOITS; do gen s3 $e "ESP32-S3" 4259840 "spiffs-$e.bin"; done
-          for e in $EXPLOITS; do gen c3s $e "ESP32-C3" 3473408 "spiffs-$e.bin"; done
-          for e in $EXPLOITS; do gen c3z $e "ESP32-C3" 3473408 "spiffs-$e.bin"; done
+
+          # C3 Super Mini (chipFamily = ESP32-C3, offset = 0x290000)
+          for e in $EXPLOITS; do gen c3s $e "ESP32-C3" 2686976 "spiffs-$e.bin"; done
+
+          # C3 Zero (то же самое)
+          for e in $EXPLOITS; do gen c3z $e "ESP32-C3" 2686976 "spiffs-$e.bin"; done
 
           echo "=== Manifests ==="
           ls -la flasher/manifests/
