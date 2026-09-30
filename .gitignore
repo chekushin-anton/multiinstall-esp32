@@ -1,0 +1,26 @@
+# Arduino / ESP32
+build/
+build-*/
+*.elf
+*.map
+*.merged.bin
+*_flashed.bin
+build.options.json
+flash_args
+sdkconfig
+sdkconfig.old
+partitions.csv
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Logs / temp
+*.log
+*.swp

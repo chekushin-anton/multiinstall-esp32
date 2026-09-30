@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 Installer</title>
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #222; }
+    h1 { margin-bottom: 8px; }
+    .sub { color: #666; margin-bottom: 24px; }
+    .warning { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 14px 16px; margin: 20px 0; font-size: 14px; }
+    .selectors { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
+    .selectors label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+    .selectors select { width: 100%; padding: 10px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; background: #fff; }
+    esp-web-install-button { display: block; margin: 24px 0; }
+    .hint { color: #666; font-size: 14px; line-height: 1.5; }
+    .hint code { background: #f3f3f3; padding: 2px 5px; border-radius: 4px; }
+    @media (max-width: 500px) { .selectors { grid-template-columns: 1fr; } }
+  </style>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+</head>
+<body>
+  <h1>ESP32 Installer</h1>
+  <p class="sub">Р’С‹Р±РµСЂРёС‚Рµ РїР»Р°С‚Сѓ Рё РІРµСЂСЃРёСЋ РїСЂРѕС€РёРІРєРё PS4, Р·Р°С‚РµРј РїСЂРѕС€РµР№С‚Рµ СѓСЃС‚СЂРѕР№СЃС‚РІРѕ РѕРґРЅРѕР№ РєРЅРѕРїРєРѕР№.</p>
+
+  <div class="warning">
+    <strong>Р’РЅРёРјР°РЅРёРµ:</strong> СЂР°Р±РѕС‚Р°РµС‚ С‚РѕР»СЊРєРѕ РІ <strong>Chrome, Edge, Opera</strong> РЅР° РєРѕРјРїСЊСЋС‚РµСЂРµ.
+  </div>
+
+  <div class="selectors">
+    <div>
+      <label for="board">РџР»Р°С‚Р°</label>
+      <select id="board">
+        <option value="s3">ESP32-S3 (16 РњР‘)</option>
+        <option value="c3s">ESP32-C3 Super Mini (4 РњР‘)</option>
+        <option value="c3z">ESP32-C3 Zero (4 РњР‘)</option>
+      </select>
+    </div>
+    <div>
+      <label for="firmware">РџСЂРѕС€РёРІРєР° PS4</label>
+      <select id="firmware"></select>
+    </div>
+  </div>
+
+  <div id="install-container">
+    <esp-web-install-button id="install-btn" manifest="">
+      <button slot="activate">РџРѕРґРєР»СЋС‡РёС‚СЊ Рё РїСЂРѕС€РёС‚СЊ</button>
+      <span slot="unsupported">Р‘СЂР°СѓР·РµСЂ РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚СЃСЏ. РСЃРїРѕР»СЊР·СѓР№С‚Рµ Chrome/Edge.</span>
+      <span slot="not-allowed">РћС‚РєСЂРѕР№С‚Рµ СЃС‚СЂР°РЅРёС†Сѓ РїРѕ HTTPS.</span>
+    </esp-web-install-button>
+  </div>
+
+  <p class="hint">
+    <strong>Р’Р°Р¶РЅРѕ:</strong> РІ РґРёР°Р»РѕРіРѕРІРѕРј РѕРєРЅРµ РїРѕСЃС‚Р°РІСЊС‚Рµ РіР°Р»РѕС‡РєСѓ <strong>Erase device</strong>.
+  </p>
+
+  <script>
+    const boardSel = document.getElementById('board');
+    const fwSel = document.getElementById('firmware');
+    const installBtn = document.getElementById('install-btn');
+
+    const OPTIONS = {
+      s3: [
+        { value: 'all',  label: 'Р’СЃРµ РІРµСЂСЃРёРё FW (СЂРµРєРѕРјРµРЅРґСѓРµС‚СЃСЏ)' },
+        { value: '505',  label: 'PS4 FW 5.05' },
+        { value: '672',  label: 'PS4 FW 6.72' },
+        { value: '700',  label: 'PS4 FW 7.00' },
+        { value: '900',  label: 'PS4 FW 9.00' },
+        { value: '1352', label: 'PS4 FW 13.52' }
+      ],
+      c3s: [
+        { value: '505',  label: 'PS4 FW 5.05' },
+        { value: '672',  label: 'PS4 FW 6.72' },
+        { value: '700',  label: 'PS4 FW 7.00' },
+        { value: '900',  label: 'PS4 FW 9.00' },
+        { value: '1352', label: 'PS4 FW 13.52' }
+      ],
+      c3z: [
+        { value: '505',  label: 'PS4 FW 5.05' },
+        { value: '672',  label: 'PS4 FW 6.72' },
+        { value: '700',  label: 'PS4 FW 7.00' },
+        { value: '900',  label: 'PS4 FW 9.00' },
+        { value: '1352', label: 'PS4 FW 13.52' }
+      ]
+    };
+
+    function rebuild() {
+      fwSel.innerHTML = '';
+      OPTIONS[boardSel.value].forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o.value;
+        opt.textContent = o.label;
+        fwSel.appendChild(opt);
+      });
+      updateManifest();
+    }
+
+    function updateManifest() {
+      installBtn.setAttribute('manifest', 'manifests/' + boardSel.value + '-' + fwSel.value + '.json');
+      installBtn.style.display = 'none';
+      void installBtn.offsetHeight;
+      installBtn.style.display = '';
+    }
+
+    boardSel.addEventListener('change', rebuild);
+    fwSel.addEventListener('change', updateManifest);
+    rebuild();
+  </script>
+</body>
+</html>
