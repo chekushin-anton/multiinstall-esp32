@@ -1,0 +1,17 @@
+{
+  "name": "ESP32 - ESP32-C3 - FW 672",
+  "version": "1.0.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-C3",
+      "parts": [
+        { "path": "../firmware/c3s/bootloader.bin", "offset": 0 },
+        { "path": "../firmware/c3s/partitions.bin", "offset": 32768 },
+        { "path": "../firmware/c3s/boot_app0.bin",  "offset": 57344 },
+        { "path": "../firmware/c3s/firmware.bin",   "offset": 65536 },
+        { "path": "../firmware/c3s/spiffs-672.bin",      "offset": 2686976 }
+      ]
+    }
+  ]
+}
