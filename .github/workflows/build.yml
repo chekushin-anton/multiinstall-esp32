@@ -31,7 +31,7 @@ jobs:
       - name: Build all boards
         run: |
           set -e
-          SKETCH="webinstall_esp32_ps4hen"
+          SKETCH="ESP32-S3-LittleFS-WebServer"
           mkdir -p flasher/firmware/s3 flasher/firmware/c3s flasher/firmware/c3z flasher/manifests
           EXPLOITS="505 672 700 900 1352"
 
@@ -39,7 +39,7 @@ jobs:
           echo "Found mklittlefs: $MKLS"
           chmod +x "$MKLS"
 
-          # ============ S3 ============
+          # ============ S3 (16 MB) ============
           echo "=== S3 ==="
           cat > "$SKETCH/partitions.csv" <<'EOF'
           # Name,   Type, SubType, Offset,  Size, Flags
@@ -51,14 +51,22 @@ jobs:
           coredump, data, coredump,0xFF0000,0x10000,
           EOF
 
-          arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=custom,CDCOnBoot=default --output-dir ./build-s3 "$SKETCH"
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=custom,CDCOnBoot=default \
+            --output-dir ./build-s3 "$SKETCH"
+
           cp build-s3/*.bootloader.bin flasher/firmware/s3/bootloader.bin
           cp build-s3/*.partitions.bin flasher/firmware/s3/partitions.bin
           cp build-s3/*.ino.bin        flasher/firmware/s3/firmware.bin
           find ~/.arduino15 -name "boot_app0.bin" -exec cp {} flasher/firmware/s3/ \;
 
+          # S3: все FW одним образом
+          echo "--- S3: all ---"
           "$MKLS" -c "$SKETCH/data" -s 0xBE0000 -p 256 -b 4096 flasher/firmware/s3/spiffs-all.bin
+
+          # S3: по одной версии
           for e in $EXPLOITS; do
+            echo "--- S3: FW $e ---"
             rm -rf staging && mkdir -p staging/ran
             cp -r "$SKETCH/data/index.html" "$SKETCH/data/style.css" staging/ 2>/dev/null || true
             cp -r "$SKETCH/data/ran/index.html" staging/ran/ 2>/dev/null || true
@@ -68,7 +76,7 @@ jobs:
             "$MKLS" -c staging -s 0xBE0000 -p 256 -b 4096 flasher/firmware/s3/spiffs-$e.bin
           done
 
-          # ============ C3 ============
+          # ============ C3 (4 MB, общая partitions.csv) ============
           echo "=== C3 ==="
           cat > "$SKETCH/partitions.csv" <<'EOF'
           # Name,   Type, SubType, Offset,  Size, Flags
@@ -80,13 +88,19 @@ jobs:
           coredump, data, coredump,0x400000,0x10000,
           EOF
 
-          arduino-cli compile --fqbn esp32:esp32:nologo_esp32c3_super_mini:FlashSize=4M,PartitionScheme=custom,CDCOnBoot=cdc --output-dir ./build-c3s "$SKETCH"
+          # --- C3 Super Mini ---
+          echo "--- C3 Super Mini ---"
+          arduino-cli compile \
+            --fqbn esp32:esp32:nologo_esp32c3_super_mini:PartitionScheme=custom,CDCOnBoot=cdc \
+            --output-dir ./build-c3s "$SKETCH"
+
           cp build-c3s/*.bootloader.bin flasher/firmware/c3s/bootloader.bin
           cp build-c3s/*.partitions.bin flasher/firmware/c3s/partitions.bin
           cp build-c3s/*.ino.bin        flasher/firmware/c3s/firmware.bin
           find ~/.arduino15 -name "boot_app0.bin" -exec cp {} flasher/firmware/c3s/ \;
 
           for e in $EXPLOITS; do
+            echo "--- C3S: FW $e ---"
             rm -rf staging && mkdir -p staging/ran
             cp -r "$SKETCH/data/index.html" "$SKETCH/data/style.css" staging/ 2>/dev/null || true
             cp -r "$SKETCH/data/ran/index.html" staging/ran/ 2>/dev/null || true
@@ -96,13 +110,19 @@ jobs:
             "$MKLS" -c staging -s 0x0B0000 -p 256 -b 4096 flasher/firmware/c3s/spiffs-$e.bin
           done
 
-          arduino-cli compile --fqbn esp32:esp32:esp32c3:FlashSize=4M,PartitionScheme=custom,CDCOnBoot=cdc --output-dir ./build-c3z "$SKETCH"
+          # --- C3 Zero (generic ESP32-C3) ---
+          echo "--- C3 Zero ---"
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32c3:PartitionScheme=custom,CDCOnBoot=cdc \
+            --output-dir ./build-c3z "$SKETCH"
+
           cp build-c3z/*.bootloader.bin flasher/firmware/c3z/bootloader.bin
           cp build-c3z/*.partitions.bin flasher/firmware/c3z/partitions.bin
           cp build-c3z/*.ino.bin        flasher/firmware/c3z/firmware.bin
           find ~/.arduino15 -name "boot_app0.bin" -exec cp {} flasher/firmware/c3z/ \;
 
           for e in $EXPLOITS; do
+            echo "--- C3Z: FW $e ---"
             rm -rf staging && mkdir -p staging/ran
             cp -r "$SKETCH/data/index.html" "$SKETCH/data/style.css" staging/ 2>/dev/null || true
             cp -r "$SKETCH/data/ran/index.html" staging/ran/ 2>/dev/null || true
@@ -111,6 +131,9 @@ jobs:
             cp -r "$SKETCH/data/ran/$e" staging/ran/
             "$MKLS" -c staging -s 0x0B0000 -p 256 -b 4096 flasher/firmware/c3z/spiffs-$e.bin
           done
+
+          echo "=== Firmware tree ==="
+          find flasher/firmware -type f -exec ls -la {} \;
 
       - name: Generate manifests
         run: |
@@ -146,6 +169,9 @@ jobs:
           for e in $EXPLOITS; do gen s3 $e "ESP32-S3" 4259840 "spiffs-$e.bin"; done
           for e in $EXPLOITS; do gen c3s $e "ESP32-C3" 3473408 "spiffs-$e.bin"; done
           for e in $EXPLOITS; do gen c3z $e "ESP32-C3" 3473408 "spiffs-$e.bin"; done
+
+          echo "=== Manifests ==="
+          ls -la flasher/manifests/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
