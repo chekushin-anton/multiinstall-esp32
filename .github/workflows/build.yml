@@ -28,10 +28,41 @@ jobs:
           arduino-cli core update-index
           arduino-cli core install esp32:esp32
 
+      - name: Find sketch folder
+        id: find_sketch
+        run: |
+          set -e
+          echo "=== Repository root ==="
+          ls -la
+
+          # Ищем папку, где есть .ino файл
+          SKETCH=""
+          for d in */; do
+            d="${d%/}"
+            if ls "$d"/*.ino >/dev/null 2>&1; then
+              SKETCH="$d"
+              break
+            fi
+          done
+
+          if [ -z "$SKETCH" ]; then
+            echo "ERROR: sketch folder with .ino not found"
+            echo "Contents:"
+            find . -maxdepth 2 -name "*.ino"
+            exit 1
+          fi
+
+          echo "Found sketch folder: $SKETCH"
+          ls -la "$SKETCH"
+
+          echo "SKETCH=$SKETCH" >> $GITHUB_OUTPUT
+
       - name: Build all boards
         run: |
           set -e
-          SKETCH="ESP32-S3-LittleFS-WebServer"
+          SKETCH="${{ steps.find_sketch.outputs.SKETCH }}"
+          echo "Using SKETCH=$SKETCH"
+
           mkdir -p flasher/firmware/s3 flasher/firmware/c3s flasher/firmware/c3z flasher/manifests
           EXPLOITS="505 672 700 900 1352"
 
@@ -76,7 +107,7 @@ jobs:
             "$MKLS" -c staging -s 0xBE0000 -p 256 -b 4096 flasher/firmware/s3/spiffs-$e.bin
           done
 
-          # ============ C3 (4 MB, общая partitions.csv) ============
+          # ============ C3 (4 MB) ============
           echo "=== C3 ==="
           cat > "$SKETCH/partitions.csv" <<'EOF'
           # Name,   Type, SubType, Offset,  Size, Flags
@@ -110,7 +141,7 @@ jobs:
             "$MKLS" -c staging -s 0x0B0000 -p 256 -b 4096 flasher/firmware/c3s/spiffs-$e.bin
           done
 
-          # --- C3 Zero (generic ESP32-C3) ---
+          # --- C3 Zero ---
           echo "--- C3 Zero ---"
           arduino-cli compile \
             --fqbn esp32:esp32:esp32c3:PartitionScheme=custom,CDCOnBoot=cdc \
